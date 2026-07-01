@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"gitlab.com/gitlab-org/fleeting/fleeting/provider"
+	"github.com/lxc/incus/v6/shared/api"
 )
 
 func TestNormalizePoolKeyDefaultsAndPrefixesUserNamespace(t *testing.T) {
@@ -27,25 +28,6 @@ func TestNormalizeRejectsPoolKeyWithUserPrefix(t *testing.T) {
 
 	if _, err := Normalize(cfg, provider.Settings{}); err == nil {
 		t.Fatal("Normalize() error = nil, want error")
-	}
-}
-
-func TestNormalizeRequiresExactlyOneSource(t *testing.T) {
-	cfg := validConfig()
-	cfg.Template = &TemplateSource{Name: "runner-template"}
-
-	if _, err := Normalize(cfg, provider.Settings{}); err == nil {
-		t.Fatal("Normalize() with two sources error = nil, want error")
-	}
-
-	cfg.Image = nil
-	if _, err := Normalize(cfg, provider.Settings{}); err != nil {
-		t.Fatalf("Normalize() with template source error = %v", err)
-	}
-
-	cfg.Template = nil
-	if _, err := Normalize(cfg, provider.Settings{}); err == nil {
-		t.Fatal("Normalize() with no source error = nil, want error")
 	}
 }
 
@@ -95,7 +77,12 @@ func validConfig() Config {
 		NamePrefix:   "ci-",
 		PoolID:       "test",
 		InstanceType: InstanceContainer,
-		Image:        &ImageSource{Alias: "ubuntu/24.04"},
+		Image:        api.InstanceSource {
+                    Type: "image",
+                    Alias: "ubuntu/24.04",
+                    Server: "https://images.linuxcontainers.org/",
+                    Protocol: "simplestreams",
+                },
 		SSHUsername:  "runner",
 		SSHPublicKey: "ssh-ed25519 AAAATEST test@example",
 	}

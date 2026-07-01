@@ -97,31 +97,49 @@ These fields nest under `[runners.autoscaler.plugin_config.connector]`.
 
 ### Image source
 
-Exactly one of `[image]` or `[template]` must be configured.
+Images can be either created from an image server or copied from existing
+instances.
+
 
 ```toml
 [runners.autoscaler.plugin_config.image]
 alias = "ubuntu/24.04/cloud"
+server = "https://images.linuxcontainers.org/"
+protocol = "simplestreams"
+type = "image"
+
 ```
+
+The fields are exactly the same as in the incus api
+[`instanceSource`](https://pkg.go.dev/github.com/lxc/incus@v0.6.0/shared/api#InstanceSource)
+type.
+Note that fuzzy matching for image aliases has been removed. Your alias
+must be an exact match among the existing aliases.
 
 | Field | Description |
 | --- | --- |
-| `alias` | Incus image alias, for example `ubuntu/24.04/cloud`. Resolved to a fingerprint before creation. |
+| `type` | Either "image" or "copy" (required)
+| `alias` | Incus image alias.
 | `fingerprint` | Exact image fingerprint. More reproducible than `alias` when builds must not drift. |
-| `properties` | Image metadata key/value map; used when neither `alias` nor `fingerprint` is set. |
+| `server` | Remote server, if any.
+| `protocol` | Protocol used by the remote server, if any.
+| `secret` | Secret used by the remote server, if any.
+| `properties` | Image metadata key/value map; can be used for filtering.
 | `project` | Incus project to look up the image in. Defaults to the plugin's configured `project`. |
 
-### Template source
+In order to copy an existing instance as a template, you can use this
+example configuration instead of the above:
 
 ```toml
-[runners.autoscaler.plugin_config.template]
-name = "gitlab-runner-template"
+[runners.autoscaler.plugin_config.image]
+type = "copy"
+source = "gitlab-runner-template"
 instance_only = true
 ```
 
 | Field | Description |
 | --- | --- |
-| `name` | Name of the source instance or snapshot to copy. |
+| `source` | Name of the source instance or snapshot to copy. |
 | `project` | Incus project containing the template. Defaults to the plugin's configured `project`. |
 | `instance_only` | When `true`, snapshots from the source are not copied. |
 

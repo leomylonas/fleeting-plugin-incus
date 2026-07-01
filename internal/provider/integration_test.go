@@ -118,8 +118,11 @@ func TestIntegrationTemplateLifecycle(t *testing.T) {
 	})
 
 	group := &InstanceGroup{Config: providerConfigForIntegration(it, project, network, "tmpl")}
-	group.Image = nil
-	group.Template = &config.TemplateSource{Name: templateName, InstanceOnly: true}
+	group.Image = api.InstanceSource {
+                Type: "copy",
+                Source: templateName,
+                InstanceOnly: true,
+            }
 	if _, err := group.Init(ctx, hclog.NewNullLogger(), fleeting.Settings{}); err != nil {
 		t.Fatalf("Init() error = %v", err)
 	}
@@ -431,7 +434,8 @@ func providerConfigForIntegration(it integrationConfig, project string, network 
 		Profiles:           it.Profiles,
 		Network:            network,
 		NetworkInterface:   "eth0",
-		Image: &config.ImageSource{
+		Image: api.InstanceSource{
+                        Type: "image",
 			Alias:   it.ImageAlias,
 			Project: it.ImageProject,
 		},
@@ -463,7 +467,6 @@ func createStoppedImageInstance(t *testing.T, ctx context.Context, client incus.
 		},
 		Start: false,
 	}
-	resolveIntegrationImageSource(t, client, it, &req)
 	op, err := client.CreateInstance(req)
 	if err != nil {
 		t.Fatalf("create stopped instance %q: %v", name, err)
@@ -471,34 +474,6 @@ func createStoppedImageInstance(t *testing.T, ctx context.Context, client incus.
 	if err := op.WaitContext(ctx); err != nil {
 		t.Fatalf("wait create stopped instance %q: %v", name, err)
 	}
-}
-
-func resolveIntegrationImageSource(t *testing.T, client incus.InstanceServer, it integrationConfig, req *api.InstancesPost) {
-	t.Helper()
-	if req.Source.Type != "image" || req.Source.Fingerprint != "" || req.Source.Alias == "" {
-		return
-	}
-
-	imageClient := client
-	if req.Source.Project != "" {
-		imageClient = client.UseProject(req.Source.Project)
-	}
-	alias, _, err := imageClient.GetImageAlias(req.Source.Alias)
-	if err != nil {
-		fingerprint, fallbackErr := cachedImageFingerprintForAlias(imageLookupClient(imageClient), req.Source.Alias, req.Type)
-		if fallbackErr != nil {
-			t.Fatalf("get image alias %q: %v; cached-image fallback: %v", req.Source.Alias, err, fallbackErr)
-		}
-		req.Source.Fingerprint = fingerprint
-		req.Source.Alias = ""
-		return
-	}
-	if alias.Target == "" {
-		t.Fatalf("image alias %q has no target fingerprint", req.Source.Alias)
-	}
-
-	req.Source.Fingerprint = alias.Target
-	req.Source.Alias = ""
 }
 
 func waitForManagedInstance(t *testing.T, ctx context.Context, group *InstanceGroup, timeout time.Duration) string {

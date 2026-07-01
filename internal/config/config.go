@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"gitlab.com/gitlab-org/fleeting/fleeting/provider"
+	"github.com/lxc/incus/v6/shared/api"
 )
 
 const (
@@ -101,9 +102,7 @@ type Config struct {
 	StoragePool    string                       `json:"storage_pool"`
 	RootDiskSize   string                       `json:"root_disk_size"`
 
-	// Exactly one source must be configured: image launch or local template copy.
-	Image    *ImageSource    `json:"image"`
-	Template *TemplateSource `json:"template"`
+        Image api.InstanceSource `json:"image"`
 
 	// SSH public keys are optional. If omitted, the selected image/template must
 	// already contain credentials usable by SSHUsername.
@@ -121,29 +120,12 @@ type Config struct {
 	Connector        ConnectorOptions `json:"connector"`
 }
 
-type ImageSource struct {
-	// Alias is the human-friendly image name in Incus, such as
-	// "ubuntu/24.04/cloud". Use either Alias, Fingerprint, or Properties.
-	Alias string `json:"alias"`
-	// Fingerprint pins instance creation to an exact image. This is more
-	// reproducible than Alias when production builds must not drift.
-	Fingerprint string `json:"fingerprint"`
-	// Properties lets Incus resolve an image by metadata fields when neither an
-	// alias nor fingerprint is convenient.
-	Properties map[string]string `json:"properties"`
-	// Project optionally points image lookup at another Incus project.
-	Project string `json:"project"`
-}
-
-type TemplateSource struct {
-	// Name is the source instance or snapshot to copy. The source should already
-	// contain any packages, users, services, or credentials expected by Runner.
-	Name string `json:"name"`
-	// Project optionally points template lookup at another Incus project.
-	Project string `json:"project"`
-	// InstanceOnly skips copying snapshots from the source template.
-	InstanceOnly bool `json:"instance_only"`
-}
+/* The old "TemplateSource" can be emulated with
+ *      type: copy
+ *      source: [[the name]]
+ *      project: [[same]]
+ *      instance_only: [[same]]
+ */
 
 type ConnectorOptions struct {
 	// Keepalive and Timeout override Fleeting's connector defaults for SSH.
@@ -282,6 +264,10 @@ func validate(cfg Config) error {
 		return errors.New("pool_config_key must contain only letters, numbers, dots, underscores, and dashes")
 	}
 
+        if cfg.Image.Type != "image" && cfg.Image.Type != "copy" {
+            return errors.New("image.type is required (must be either 'image' or 'copy')")
+        }
+
 	switch cfg.InstanceType {
 	case InstanceContainer, InstanceVM:
 	default:
@@ -289,21 +275,6 @@ func validate(cfg Config) error {
 	}
 	if cfg.Privileged && cfg.InstanceType != InstanceContainer {
 		return errors.New("privileged is only supported for container instances")
-	}
-
-	hasImage := cfg.Image != nil
-	hasTemplate := cfg.Template != nil
-	switch {
-	case hasImage == hasTemplate:
-		return errors.New("exactly one of image or template is required")
-	case hasImage:
-		if cfg.Image.Alias == "" && cfg.Image.Fingerprint == "" && len(cfg.Image.Properties) == 0 {
-			return errors.New("image requires alias, fingerprint, or properties")
-		}
-	case hasTemplate:
-		if cfg.Template.Name == "" {
-			return errors.New("template.name is required")
-		}
 	}
 
 	if cfg.SSHPublicKey != "" && cfg.SSHPublicKeyPath != "" {

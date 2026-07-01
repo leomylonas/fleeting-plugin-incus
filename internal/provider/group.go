@@ -38,6 +38,7 @@ type InstanceGroup struct {
 }
 
 func (g *InstanceGroup) Init(ctx context.Context, logger hclog.Logger, settings fleeting.Settings) (fleeting.ProviderInfo, error) {
+
 	// Fleeting calls Init exactly once when GitLab Runner starts the plugin.
 	// This is the right place to validate user config, merge Fleeting connector
 	// defaults, and establish the Incus API client.
@@ -72,6 +73,7 @@ func (g *InstanceGroup) Init(ctx context.Context, logger hclog.Logger, settings 
 	g.cfg = cfg
 	g.client = client
 	g.settings = settings
+
 	g.mu.Unlock()
 
 	// ProviderInfo tells Fleeting what this plugin instance represents. MaxSize
@@ -92,7 +94,7 @@ func (g *InstanceGroup) Update(ctx context.Context, update func(instance string,
 	// report each current state back through the callback supplied by Fleeting.
 	instances, err := g.managedInstances(ctx)
 	if err != nil {
-		return err
+            return err
 	}
 
 	cfg, client := g.snapshot()
@@ -167,15 +169,9 @@ func (g *InstanceGroup) Increase(ctx context.Context, n int) (int, error) {
 			continue
 		}
 
+                g.logger.Info("Requesting creation of new instance",
+                    "name", name)
 		req := g.createRequest(name)
-		if err := g.resolveImageSource(client, &req); err != nil {
-			errs = append(errs, fmt.Errorf("resolve image for %s: %w", name, err))
-			continue
-		}
-		if err := g.resolveTemplateSource(client, &req); err != nil {
-			errs = append(errs, fmt.Errorf("resolve template for %s: %w", name, err))
-			continue
-		}
 		// CreateInstance returns an Incus operation. Waiting for it means the
 		// instance creation/start request has completed before we report success.
 		op, err := client.CreateInstance(req)
